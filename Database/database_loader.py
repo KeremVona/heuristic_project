@@ -3,9 +3,6 @@ from typing import Dict
 from DataModels.food import Food
 from DataModels.user import User
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 
 class DatabaseLoader:
