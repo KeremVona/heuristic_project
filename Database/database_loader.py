@@ -1,17 +1,19 @@
 import mysql.connector
 from typing import Dict
 from DataModels.food import Food
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 
 class DatabaseLoader:
-    def __init__(
-        self, host="localhost", user="root", password="password", database="modp_diet"
-    ):
+    def __init__(self):
         self.db_config = {
-            "host": host,
-            "user": user,
-            "password": password,
-            "database": database,
+            "host": os.getenv("DB_HOST"),
+            "user": os.getenv("DB_USER"),
+            "password": os.getenv("DB_PASSWORD"),
+            "database": os.getenv("DB_NAME"),
         }
 
     def _get_connection(self):
@@ -19,7 +21,7 @@ class DatabaseLoader:
 
     def load_foods(self) -> Dict[int, Food]:
         """
-        Connects to the DB, fetches all 405 foods[cite: 5], and populates their nutrients.
+        Connects to the DB, fetches all 405 foods, and populates their nutrients.
         Returns the foods_dict expected by your mate's DietDecoder.
         """
         foods_dict = {}
