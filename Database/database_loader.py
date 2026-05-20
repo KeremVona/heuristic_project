@@ -29,7 +29,7 @@ class DatabaseLoader:
         try:
             # Join foods with their nutrients
             query = """
-                SELECT f.id, f.name, f.cost, f.preference, 
+                SELECT f.id, f.name, f.foodGroupId, f.cost, f.preference, 
                        f.preparingTime, f.cookingTime, f.co2, 
                        n.name AS nutrient_name, fn.value AS nutrient_value
                 FROM foods f
@@ -44,17 +44,23 @@ class DatabaseLoader:
                 
                 # If we haven't seen this food yet, make it
                 if food_id not in foods_dict:
-                    # Note: We may need to adjust the is_vegetarian logic based on how 
-                    # our specific DB schema flags meat vs. non-meat groups.
+                    group_id = int(row['foodGroupId'])
+
+                    # NOTE: Check Database if IDs are correct
+
+                    meat_groups = [2, 3, 15, 23] 
+                    is_veg = group_id not in meat_groups
+
                     foods_dict[food_id] = Food(
                         food_id=food_id,
                         name=row['name'],
+                        food_group_id=group_id,
                         cost=float(row['cost']),
                         preference=float(row['preference']),
                         prep_time=float(row['preparingTime']),
                         cook_time=float(row['cookingTime']),
                         co2=float(row['co2']),
-                        is_vegetarian=True # Update this based on our food_group logic!
+                        is_vegetarian=is_veg
                     )
                 
                 # Add the nutrient to the food's dictionary

@@ -3,6 +3,7 @@ class Food:
         self,
         food_id: int,
         name: str,
+        food_group_id: int,
         cost: float,
         preference: float,
         prep_time: float,
@@ -12,6 +13,7 @@ class Food:
     ):
         self.food_id = food_id
         self.name = name
+        self.food_group_id = food_group_id
         self.cost = cost
         self.preference = preference
         self.prep_time = prep_time
