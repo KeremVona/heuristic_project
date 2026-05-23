@@ -3,6 +3,7 @@ from dotenv import load_dotenv
 from Database.database_loader import DatabaseLoader
 from Helpers.apply_user_preferences import apply_user_preferences
 from Penalty.evaluator import Evaluator
+from Algorithms.spea2_optimizer import run_spea2
 
 # Load environment variables from .env file
 load_dotenv()
@@ -75,3 +76,31 @@ penalized_fitness = fake_raw_preference - (evaluator.lambda_weight * penalty_sco
 print(f"Fake Raw Preference Score: {fake_raw_preference}")
 print(f"Final Penalized Fitness:   {penalized_fitness:.4f}")
 print("---------------------------------\n")
+
+
+#AKİF ŞENYİĞİT
+
+
+
+# ... (main.py içerisindeki Evaluator test scriptinin bitişinden sonrası) ...
+
+print("\n==========================================")
+print("     SPEA2 OPTİMİZASYON AŞAMASI           ")
+print("==========================================")
+
+# Gerçek bir Evaluator nesnesi oluştur
+main_evaluator = Evaluator(lambda_weight=1.0)
+
+# KULLANICI 1 İÇİN ÇALIŞTIR (Non-Vegetarian)
+res_user1 = run_spea2(user1, user1_foods, main_evaluator, pop_size=50, n_gen=50)
+
+print(f"\n✅ Kullanıcı 1 İçin İşlem Tamamlandı!")
+print(f"Bulunan Pareto Çözüm Sayısı: {len(res_user1.F) if res_user1.F is not None else 0}")
+
+# KULLANICI 2 İÇİN ÇALIŞTIR (Vegetarian)
+res_user2 = run_spea2(user2, user2_foods, main_evaluator, pop_size=50, n_gen=50)
+
+print(f"\n✅ Kullanıcı 2 İçin İşlem Tamamlandı!")
+print(f"Bulunan Pareto Çözüm Sayısı: {len(res_user2.F) if res_user2.F is not None else 0}")
+
+# (7. kişi res_user1.F ve res_user1.X verilerini alıp CSV'ye dökecek ve görselleri hazırlayacak.)
