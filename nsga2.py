@@ -69,34 +69,35 @@ def assign_quality_groups(menu_pool):
         for menu1 in waiting_menus:
             menu1.is_beaten = False  # New round, clean the record.
             
-            if menu1.mistake_points > 0: # If menu break rules, it is beaten.
-                menu1.is_beaten = True
-                continue 
-                
             for menu2 in waiting_menus:
                 if menu1 == menu2: continue
                 
-                #  If opponent is already beaten, skip it.
-                if menu2.is_beaten == True: continue
+                
                     
-                # COMPARE CHECK RULES FOR FINDING THE BEST MENU
-                # IF THE MENU IS NOT WORSE THAN FROM THE OTHER ONE IN EVERY AREA
-
-                better_or_equal_pref = (menu2.preference_score >= menu1.preference_score)
-                better_or_equal_price = (menu2.price_score <= menu1.price_score)
-                better_or_equal_time = (menu2.time_score <= menu1.time_score)
-
-                
-                # IF THIS MENU IS BETTER THAN THE OTHER ONE AT LEAST IN ONE AREA
-                
-                strictly_better_pref = (menu2.preference_score > menu1.preference_score)
-                strictly_better_price = (menu2.price_score < menu1.price_score)
-                strictly_better_time = (menu2.time_score < menu1.time_score)
-                
-                if (better_or_equal_pref and better_or_equal_price and better_or_equal_time):
-                    if (strictly_better_pref or strictly_better_price or strictly_better_time):
-                        menu1.is_beaten = True
-                        break 
+                if menu2.mistake_points < menu1.mistake_points: # delete menu that is not healthy
+                    menu1.is_beaten = True 
+                    break 
+                elif menu2.mistake_points > menu1.mistake_points: 
+                    continue 
+                else: # if mistake points are same , compare these for preference,price and  cooking time. 
+                    # COMPARE CHECK RULES FOR FINDING THE BEST MENU
+                    # IF THE MENU IS NOT WORSE THAN FROM THE OTHER ONE IN EVERY AREA
+    
+                    better_or_equal_pref = (menu2.preference_score >= menu1.preference_score)
+                    better_or_equal_price = (menu2.price_score <= menu1.price_score)
+                    better_or_equal_time = (menu2.time_score <= menu1.time_score)
+    
+                    
+                    # IF THIS MENU IS BETTER THAN THE OTHER ONE AT LEAST IN ONE AREA
+                    
+                    strictly_better_pref = (menu2.preference_score > menu1.preference_score)
+                    strictly_better_price = (menu2.price_score < menu1.price_score)
+                    strictly_better_time = (menu2.time_score < menu1.time_score)
+                    
+                    if (better_or_equal_pref and better_or_equal_price and better_or_equal_time):
+                        if (strictly_better_pref or strictly_better_price or strictly_better_time):
+                            menu1.is_beaten = True
+                            break 
 
        # END OF THE LOOP, IF THERE IS A MENU THAT IS NOT LOSER GIVE IT A GROUP NUMBER 
         any_group_assigned = False
