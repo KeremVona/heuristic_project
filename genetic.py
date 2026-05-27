@@ -2,13 +2,13 @@ import random
 from typing import List, Tuple
 
 class DietChromosome:
-    """Genetik algoritma için bir çözüm adayını (kromozom) temsil eder.
+    """Represents a candidate solution (chromosome) for the genetic algorithm.
     
-    Permütasyon tabanlı bir gösterim kullanır. Kahvaltı ve Öğle/Akşam yemekleri
-    için ayrı ayrı yiyecek ID'lerinin sıralamasını tutar.
+    Uses a permutation-based representation. Holds separate orderings of 
+    food IDs for Breakfast and Lunch/Dinner meals.
     """
     def __init__(self, breakfast_ids: List[int], lunch_dinner_ids: List[int], randomize: bool = True):
-        # Listeleri kopyalayarak referans hatalarını önleme
+        # Copy lists to prevent reference errors
         self.breakfast_part = list(breakfast_ids)
         self.lunch_dinner_part = list(lunch_dinner_ids)
         
@@ -21,11 +21,11 @@ class DietChromosome:
 
 
 class GeneticOperators:
-    """Permütasyon tabanlı kromozomlar için Crossover ve Mutation işlemlerini yöneten sınıf."""
+    """Manages Crossover and Mutation operations for permutation-based chromosomes."""
     
     @staticmethod
     def ordered_crossover(p1_list: List[int], p2_list: List[int]) -> Tuple[List[int], List[int]]:
-        """Ordered Crossover (OX) operatörü. Permütasyon yapısını bozmadan çaprazlama yapar."""
+        """Ordered Crossover (OX) operator. Performs crossover without breaking permutation structure."""
         size = len(p1_list)
         if size < 2:
             return p1_list[:], p2_list[:]
@@ -34,11 +34,11 @@ class GeneticOperators:
         
         def fill_child(parent_main, parent_donor):
             child = [None] * size
-            # 1. Ana ebeveynden seçilen aralığı kopyala
+            # 1. Copy the selected range from the main parent
             child[a:b] = parent_main[a:b]
             existing = set(parent_main[a:b])
             
-            # 2. Donör ebeveynden eksik olan genleri sırasıyla doldur
+            # 2. Fill in missing genes from the donor parent in order
             donor_part = parent_donor[b:] + parent_donor[:b]
             pos = b
             for item in donor_part:
@@ -52,7 +52,7 @@ class GeneticOperators:
 
     @staticmethod
     def swap_mutation(individual_list: List[int], p_m: float) -> List[int]:
-        """Swap Mutation: Olasılığa bağlı olarak iki genin yerini değiştirir."""
+        """Swap Mutation: Swaps two genes based on a given probability."""
         if len(individual_list) >= 2 and random.random() < p_m:
             idx1, idx2 = random.sample(range(len(individual_list)), 2)
             individual_list[idx1], individual_list[idx2] = individual_list[idx2], individual_list[idx1]
@@ -60,8 +60,8 @@ class GeneticOperators:
 
     @classmethod
     def evolve(cls, parent1: DietChromosome, parent2: DietChromosome, p_c: float = 0.9) -> Tuple[DietChromosome, DietChromosome]:
-        """İki ebeveyni çaprazlar ve mutasyona uğratarak iki yeni çocuk kromozom üretir."""
-        # 1. Crossover İşlemi (Kahvaltı ve diğer öğünler bağımsız çaprazlanır)
+        """Crosses two parents and applies mutation to produce two new child chromosomes."""
+        # 1. Crossover Operation (Breakfast and other meals are crossed independently)
         if random.random() < p_c:
             b_c1, b_c2 = cls.ordered_crossover(parent1.breakfast_part, parent2.breakfast_part)
             l_c1, l_c2 = cls.ordered_crossover(parent1.lunch_dinner_part, parent2.lunch_dinner_part)
@@ -69,7 +69,7 @@ class GeneticOperators:
             b_c1, b_c2 = parent1.breakfast_part[:], parent2.breakfast_part[:]
             l_c1, l_c2 = parent1.lunch_dinner_part[:], parent2.lunch_dinner_part[:]
             
-        # 2. Mutation İşlemi (Her parça için dinamik mutasyon olasılığı)
+        # 2. Mutation Operation (Dynamic mutation probability for each part)
         pm_b = 1.0 / len(b_c1) if b_c1 else 0
         pm_l = 1.0 / len(l_c1) if l_c1 else 0
         
@@ -78,7 +78,7 @@ class GeneticOperators:
         l_c1 = cls.swap_mutation(l_c1, pm_l)
         l_c2 = cls.swap_mutation(l_c2, pm_l)
         
-        # 3. Yeni Kromozom Nesnelerini Oluştur
+        # 3. Create New Chromosome Objects
         child1 = DietChromosome(b_c1, l_c1, randomize=False)
         child2 = DietChromosome(b_c2, l_c2, randomize=False)
         
@@ -86,10 +86,10 @@ class GeneticOperators:
 
     @staticmethod
     def binary_tournament(pop: list, fitness_key=None) -> object:
-        """Binary Tournament Selection: İki rastgele birey seçer, daha iyisini döndürür.
+        """Binary Tournament Selection: Selects two random individuals, returns the better one.
         
-        fitness_key: Bireylerin karşılaştırılması için kullanılacak fonksiyon.
-                     Varsayılan olarak quality_group ve crowding_distance kullanılır.
+        fitness_key: Function to be used for comparing individuals.
+                     By default, quality_group and crowding_distance are used.
         """
         a, b = random.sample(range(len(pop)), 2)
         ind_a, ind_b = pop[a], pop[b]
@@ -97,7 +97,7 @@ class GeneticOperators:
         if fitness_key:
             return ind_a if fitness_key(ind_a) <= fitness_key(ind_b) else ind_b
         
-        # Varsayılan: NSGA-II tarzı karşılaştırma
+        # Default: NSGA-II style comparison
         qa = getattr(ind_a, 'quality_group', float('inf'))
         qb = getattr(ind_b, 'quality_group', float('inf'))
         
