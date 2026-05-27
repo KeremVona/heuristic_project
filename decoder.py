@@ -100,4 +100,9 @@ class DietDecoder:
             if targets_daily and all(totals.get(n, 0) >= targets_daily[n] for n in targets_daily): 
                 break
                 
+        # Güvenlik: Boş menü durumunda en az bir bilgi döndür
+        if not breakfast_menu and not lunch_dinner_menu:
+            # Menü oluşturulamadı — tüm besinler sıfır
+            pass  # Totals zaten sıfır, penalty yüksek olacak
+            
         return breakfast_menu, lunch_dinner_menu, totals

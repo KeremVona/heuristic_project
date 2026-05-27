@@ -36,13 +36,15 @@ class GeneticOperators:
             child = [None] * size
             # 1. Ana ebeveynden seçilen aralığı kopyala
             child[a:b] = parent_main[a:b]
+            existing = set(parent_main[a:b])
             
             # 2. Donör ebeveynden eksik olan genleri sırasıyla doldur
             donor_part = parent_donor[b:] + parent_donor[:b]
             pos = b
             for item in donor_part:
-                if item not in child:
+                if item not in existing:
                     child[pos % size] = item
+                    existing.add(item)
                     pos += 1
             return child
             
@@ -81,3 +83,27 @@ class GeneticOperators:
         child2 = DietChromosome(b_c2, l_c2, randomize=False)
         
         return child1, child2
+
+    @staticmethod
+    def binary_tournament(pop: list, fitness_key=None) -> object:
+        """Binary Tournament Selection: İki rastgele birey seçer, daha iyisini döndürür.
+        
+        fitness_key: Bireylerin karşılaştırılması için kullanılacak fonksiyon.
+                     Varsayılan olarak quality_group ve crowding_distance kullanılır.
+        """
+        a, b = random.sample(range(len(pop)), 2)
+        ind_a, ind_b = pop[a], pop[b]
+        
+        if fitness_key:
+            return ind_a if fitness_key(ind_a) <= fitness_key(ind_b) else ind_b
+        
+        # Varsayılan: NSGA-II tarzı karşılaştırma
+        qa = getattr(ind_a, 'quality_group', float('inf'))
+        qb = getattr(ind_b, 'quality_group', float('inf'))
+        
+        if qa != qb:
+            return ind_a if qa < qb else ind_b
+        
+        da = getattr(ind_a, 'crowding_distance', 0.0)
+        db = getattr(ind_b, 'crowding_distance', 0.0)
+        return ind_a if da >= db else ind_b
