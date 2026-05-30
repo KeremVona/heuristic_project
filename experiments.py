@@ -72,11 +72,16 @@ class ParetoSizeCallback(Callback):
         super().__init__()
         self.generations = []
         self.front_sizes = []
+        self.fronts_F = []
 
     def notify(self, algorithm):
         self.generations.append(int(algorithm.n_gen))
         opt = getattr(algorithm, "opt", None)
         self.front_sizes.append(int(len(opt)) if opt is not None else 0)
+        if opt is not None:
+            self.fronts_F.append(opt.get("F").copy())
+        else:
+            self.fronts_F.append(np.empty((0, 3)))
 
 
 def split_food_ids(user_foods: Dict[int, object]) -> Tuple[List[int], List[int]]:
@@ -130,7 +135,7 @@ def write_solution_rows(rows: List[Dict[str, object]]) -> None:
 
 
 def write_convergence_rows(rows: List[Dict[str, object]]) -> None:
-    fieldnames = ["algorithm", "user_id", "diversity_mode", "generation", "pareto_front_size"]
+    fieldnames = ["algorithm", "user_id", "diversity_mode", "generation", "pareto_front_size", "hypervolume"]
     with CONVERGENCE_CSV.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
@@ -183,17 +188,8 @@ def run_spea2_experiment(user, user_foods, use_diversity, pop_size, n_gen, max_s
         metrics = evaluate_chromosome(chromosome, user, user_foods, evaluator, use_diversity)
         solution_rows.append(make_solution_row("SPEA2", user.user_id, mode_name(use_diversity), rank, metrics))
 
-    convergence_rows = [
-        {
-            "algorithm": "SPEA2",
-            "user_id": user.user_id,
-            "diversity_mode": mode_name(use_diversity),
-            "generation": generation,
-            "pareto_front_size": front_size,
-        }
-        for generation, front_size in zip(callback.generations, callback.front_sizes)
-    ]
-    return solution_rows, convergence_rows
+    gen_fronts = list(zip(callback.generations, callback.front_sizes, callback.fronts_F))
+    return solution_rows, gen_fronts
 
 
 def score_nsga2_population(population, user, user_foods, evaluator, use_diversity):
@@ -220,7 +216,7 @@ def run_nsga2_experiment(user, user_foods, use_diversity, pop_size, n_gen, max_s
     evaluator = Evaluator(lambda_weight=1.0)
     breakfast_ids, lunch_dinner_ids = split_food_ids(user_foods)
     current = [DietChromosome(breakfast_ids, lunch_dinner_ids, randomize=True) for _ in range(pop_size)]
-    convergence_rows = []
+    gen_fronts = []
 
     score_nsga2_population(current, user, user_foods, evaluator, use_diversity)
     rank_nsga2_population(current)
@@ -240,22 +236,16 @@ def run_nsga2_experiment(user, user_foods, use_diversity, pop_size, n_gen, max_s
         rank_nsga2_population(combined)
         current = combined[:pop_size]
 
-        convergence_rows.append(
-            {
-                "algorithm": "NSGA-II",
-                "user_id": user.user_id,
-                "diversity_mode": mode_name(use_diversity),
-                "generation": generation,
-                "pareto_front_size": sum(1 for menu in current if menu.quality_group == 1),
-            }
-        )
+        front_menus = [menu for menu in current if menu.quality_group == 1]
+        F_gen = np.array([[-m.preference_score + m.mistake_points, m.price_score + m.mistake_points, m.time_score + m.mistake_points] for m in front_menus])
+        gen_fronts.append((generation, len(front_menus), F_gen))
 
     solution_rows = []
     for rank, chromosome in enumerate(current[:max_solutions], start=1):
         metrics = evaluate_chromosome(chromosome, user, user_foods, evaluator, use_diversity)
         solution_rows.append(make_solution_row("NSGA-II", user.user_id, mode_name(use_diversity), rank, metrics))
 
-    return solution_rows, convergence_rows
+    return solution_rows, gen_fronts
 
 
 def mode_name(use_diversity: bool) -> str:
@@ -278,24 +268,109 @@ def run_all(pop_size: int, n_gen: int, max_solutions: int, include_without_diver
     random.seed(42)
     np.random.seed(42)
 
-    solution_rows = []
-    convergence_rows = []
+    raw_results = []
     modes = [True, False] if include_without_diversity else [True]
 
     for user, user_foods in load_users_and_foods([1, 2]):
         for use_diversity in modes:
-            print(f"Running SPEA2 for user {user.user_id} ({mode_name(use_diversity)})")
-            rows, conv = run_spea2_experiment(user, user_foods, use_diversity, pop_size, n_gen, max_solutions)
-            solution_rows.extend(rows)
-            convergence_rows.extend(conv)
+            mode = mode_name(use_diversity)
+            print(f"Running SPEA2 for user {user.user_id} ({mode})")
+            sol_rows, gen_fronts = run_spea2_experiment(user, user_foods, use_diversity, pop_size, n_gen, max_solutions)
+            raw_results.append({
+                "user_id": user.user_id,
+                "algorithm": "SPEA2",
+                "diversity_mode": mode,
+                "solution_rows": sol_rows,
+                "gen_fronts": gen_fronts
+            })
 
-            print(f"Running NSGA-II for user {user.user_id} ({mode_name(use_diversity)})")
-            rows, conv = run_nsga2_experiment(user, user_foods, use_diversity, pop_size, n_gen, max_solutions)
-            solution_rows.extend(rows)
-            convergence_rows.extend(conv)
+            print(f"Running NSGA-II for user {user.user_id} ({mode})")
+            sol_rows, gen_fronts = run_nsga2_experiment(user, user_foods, use_diversity, pop_size, n_gen, max_solutions)
+            raw_results.append({
+                "user_id": user.user_id,
+                "algorithm": "NSGA-II",
+                "diversity_mode": mode,
+                "solution_rows": sol_rows,
+                "gen_fronts": gen_fronts
+            })
 
-    write_solution_rows(solution_rows)
-    write_convergence_rows(convergence_rows)
+    # Now we compute the common reference points for each user
+    ref_points = {}
+    for user_id in [1, 2]:
+        user_runs = [r for r in raw_results if r["user_id"] == user_id]
+        all_F = []
+        for run in user_runs:
+            for row in run["solution_rows"]:
+                f1 = -row["preference"] + row["penalty"]
+                f2 = row["cost"] + row["penalty"]
+                f3 = row["time"] + row["penalty"]
+                all_F.append([f1, f2, f3])
+        all_F = np.array(all_F)
+        f_min = all_F.min(axis=0)
+        f_max = all_F.max(axis=0)
+        # 10% offset:
+        ref_points[user_id] = f_max + 0.1 * (f_max - f_min)
+        print(f"User {user_id} Common Reference Point: {ref_points[user_id]}")
+
+    # Now save reference points to results/ref_points.json for visualizer!
+    ref_points_dict = {
+        str(user_id): list(ref_points[user_id])
+        for user_id in [1, 2]
+    }
+    with open(RESULTS_DIR / "ref_points.json", "w") as f:
+        json.dump(ref_points_dict, f)
+
+    # Now we calculate Hypervolumes and prepare CSV rows
+    final_solutions = []
+    final_convergence = []
+    hv_table_data = []
+
+    from pymoo.indicators.hv import HV
+    for run in raw_results:
+        user_id = run["user_id"]
+        alg = run["algorithm"]
+        mode = run["diversity_mode"]
+        ref = ref_points[user_id]
+        
+        final_solutions.extend(run["solution_rows"])
+        hv_indicator = HV(ref_point=ref)
+        final_hv = 0.0
+
+        for gen, size, F_gen in run["gen_fronts"]:
+            if len(F_gen) > 0:
+                hv_val = hv_indicator(F_gen)
+            else:
+                hv_val = 0.0
+            
+            final_convergence.append({
+                "algorithm": alg,
+                "user_id": user_id,
+                "diversity_mode": mode,
+                "generation": gen,
+                "pareto_front_size": size,
+                "hypervolume": round(hv_val, 6)
+            })
+            final_hv = hv_val
+
+        hv_table_data.append({
+            "User": f"User {user_id}",
+            "Algorithm": alg,
+            "Configuration": mode.replace("_", " ").title(),
+            "Hypervolume (HV)": f"{final_hv:,.2f}",
+            "Pareto Solutions Found": len(run["solution_rows"])
+        })
+
+    # Print the hypervolume table
+    print("\n" + "="*70)
+    print("         HYPERVOLUME EVALUATION TABLE")
+    print("="*70)
+    import pandas as pd
+    hv_df = pd.DataFrame(hv_table_data)
+    print(hv_df.to_string(index=False))
+    print("="*70 + "\n")
+
+    write_solution_rows(final_solutions)
+    write_convergence_rows(final_convergence)
     print(f"Saved {SOLUTIONS_CSV}")
     print(f"Saved {CONVERGENCE_CSV}")
 
