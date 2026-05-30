@@ -53,6 +53,47 @@ def save_pareto_plots(solution_rows):
         plt.close()
 
 
+def save_overlay_pareto_plots(solution_rows):
+    grouped = group_rows(solution_rows, ["user_id", "diversity_mode"])
+
+    for (user_id, mode), rows in grouped.items():
+        fig = plt.figure(figsize=(9, 7))
+        ax = fig.add_subplot(111, projection="3d")
+
+        styles = {
+            "SPEA2": {"color": "#1f77b4", "marker": "o"},
+            "NSGA-II": {"color": "#d62728", "marker": "^"},
+        }
+
+        for algorithm, style in styles.items():
+            algorithm_rows = [
+                row for row in rows
+                if row["algorithm"] == algorithm
+            ]
+
+            ax.scatter(
+                [as_float(row, "cost") for row in algorithm_rows],
+                [as_float(row, "preference") for row in algorithm_rows],
+                [as_float(row, "time") for row in algorithm_rows],
+                label=algorithm,
+                color=style["color"],
+                marker=style["marker"],
+                alpha=0.75,
+            )
+
+        ax.set_xlabel("Cost")
+        ax.set_ylabel("Preference")
+        ax.set_zlabel("Prep Time")
+        ax.set_title(f"Algorithm Comparison - User {user_id} - {mode}")
+        ax.legend()
+        plt.tight_layout()
+        plt.savefig(
+            RESULTS_DIR / f"overlay_user{user_id}_{mode}.png",
+            dpi=160,
+        )
+        plt.close()
+
+
 def save_convergence_plots(convergence_rows):
     for (user_id, algorithm, mode), rows in group_rows(
         convergence_rows,
@@ -140,6 +181,18 @@ def save_sample_menu_tables(solution_rows):
                 f"foods={len(menu_ids)}"
             )
             ax.set_title(title, loc="left", fontsize=10)
+            shown_ids = ", ".join(str(food_id) for food_id in menu_ids[:20])
+            if len(menu_ids) > 20:
+                shown_ids += ", ..."
+
+            ax.text(
+                0.0,
+                0.88,
+                f"Selected food IDs: {shown_ids}",
+                transform=ax.transAxes,
+                fontsize=8,
+                wrap=True,
+            )
             table = ax.table(
                 cellText=nutrient_rows_for_table(row),
                 colLabels=["Nutrient", "Menu total", "DRI low", "DRI high"],
@@ -165,6 +218,7 @@ def main():
     convergence_rows = read_csv(CONVERGENCE_CSV)
 
     save_pareto_plots(solution_rows)
+    save_overlay_pareto_plots(solution_rows)
     save_convergence_plots(convergence_rows)
     save_sample_menu_tables(solution_rows)
     save_diversity_bar_chart(solution_rows)
