@@ -294,31 +294,32 @@ def run_all(pop_size: int, n_gen: int, max_solutions: int, include_without_diver
                 "gen_fronts": gen_fronts
             })
 
-    # Now we compute the common reference points for each user
-    ref_points = {}
-    for user_id in [1, 2]:
-        user_runs = [r for r in raw_results if r["user_id"] == user_id]
-        all_F = []
-        for run in user_runs:
-            for row in run["solution_rows"]:
-                f1 = -row["preference"] + row["penalty"]
-                f2 = row["cost"] + row["penalty"]
-                f3 = row["time"] + row["penalty"]
-                all_F.append([f1, f2, f3])
-        all_F = np.array(all_F)
-        f_min = all_F.min(axis=0)
-        f_max = all_F.max(axis=0)
-        # 10% offset:
-        ref_points[user_id] = f_max + 0.1 * (f_max - f_min)
-        print(f"User {user_id} Common Reference Point: {ref_points[user_id]}")
+    # Calculate one fixed global reference point across all runs.
+    # The handout requires the same reference point for every algorithm.
+    all_observed_F = []
 
-    # Now save reference points to results/ref_points.json for visualizer!
-    ref_points_dict = {
-        str(user_id): list(ref_points[user_id])
-        for user_id in [1, 2]
-    }
+    for run in raw_results:
+        for _, _, F_gen in run["gen_fronts"]:
+            if len(F_gen) > 0:
+                all_observed_F.extend(F_gen.tolist())
+
+        for row in run["solution_rows"]:
+            all_observed_F.append([
+                -row["preference"] + row["penalty"],
+                row["cost"] + row["penalty"],
+                row["time"] + row["penalty"],
+            ])
+
+    all_observed_F = np.array(all_observed_F)
+    f_min = all_observed_F.min(axis=0)
+    f_max = all_observed_F.max(axis=0)
+
+    # Worst observed values plus 10% margin.
+    global_ref_point = f_max + 0.1 * (f_max - f_min)
+    print(f"Global Reference Point: {global_ref_point}")
+
     with open(RESULTS_DIR / "ref_points.json", "w") as f:
-        json.dump(ref_points_dict, f)
+        json.dump({"global": global_ref_point.tolist()}, f)
 
     # Now we calculate Hypervolumes and prepare CSV rows
     final_solutions = []
@@ -330,7 +331,7 @@ def run_all(pop_size: int, n_gen: int, max_solutions: int, include_without_diver
         user_id = run["user_id"]
         alg = run["algorithm"]
         mode = run["diversity_mode"]
-        ref = ref_points[user_id]
+        ref = global_ref_point
         
         final_solutions.extend(run["solution_rows"])
         hv_indicator = HV(ref_point=ref)
