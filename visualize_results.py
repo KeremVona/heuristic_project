@@ -36,15 +36,18 @@ def save_pareto_plots(solution_rows):
         solution_rows,
         ["user_id", "algorithm", "diversity_mode"],
     ).items():
-        plt.figure(figsize=(8, 6))
+        fig = plt.figure(figsize=(9, 7))
+        ax = fig.add_subplot(111, projection='3d')
         x = [as_float(row, "cost") for row in rows]
         y = [as_float(row, "preference") for row in rows]
+        z = [as_float(row, "time") for row in rows]
         colors = [as_float(row, "diversity_score") for row in rows]
-        scatter = plt.scatter(x, y, c=colors, cmap="viridis", edgecolors="black", linewidths=0.3)
-        plt.colorbar(scatter, label="Distinct food groups")
-        plt.xlabel("Cost")
-        plt.ylabel("Preference")
-        plt.title(f"Pareto Front - User {user_id} - {algorithm} - {mode}")
+        scatter = ax.scatter(x, y, z, c=colors, cmap="viridis", edgecolors="black", linewidths=0.3)
+        fig.colorbar(scatter, ax=ax, label="Distinct food groups", pad=0.1)
+        ax.set_xlabel("Cost")
+        ax.set_ylabel("Preference")
+        ax.set_zlabel("Prep Time")
+        ax.set_title(f"Pareto Front - User {user_id} - {algorithm} - {mode}")
         plt.tight_layout()
         plt.savefig(RESULTS_DIR / f"pareto_user{user_id}_{algorithm}_{mode}.png", dpi=160)
         plt.close()
@@ -59,13 +62,14 @@ def save_convergence_plots(convergence_rows):
         plt.figure(figsize=(8, 5))
         plt.plot(
             [as_int(row, "generation") for row in rows],
-            [as_int(row, "pareto_front_size") for row in rows],
+            [as_float(row, "hypervolume") for row in rows],
+            color="#d62728",
             marker="o",
-            markersize=3,
+            markersize=2,
         )
         plt.xlabel("Generation")
-        plt.ylabel("Pareto front size")
-        plt.title(f"Convergence - User {user_id} - {algorithm} - {mode}")
+        plt.ylabel("Hypervolume")
+        plt.title(f"Convergence (HV) - User {user_id} - {algorithm} - {mode}")
         plt.grid(True, alpha=0.3)
         plt.tight_layout()
         plt.savefig(RESULTS_DIR / f"convergence_user{user_id}_{algorithm}_{mode}.png", dpi=160)
